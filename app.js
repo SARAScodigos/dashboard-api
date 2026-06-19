@@ -13,6 +13,7 @@ const STORAGE_KEYS = {
   company: "accountingDashboard.companyName",
   model: "accountingDashboard.geminiModel",
   systemPrompt: "accountingDashboard.systemPrompt",
+  dataPrompt: "accountingDashboard.dataPrompt",
 };
 
 const DASHBOARD_DB = {
@@ -87,6 +88,8 @@ const elements = {
   companyInput: document.querySelector("#company-name-input"),
   modelInput: document.querySelector("#model-input"),
   systemPromptInput: document.querySelector("#system-prompt-input"),
+  dataPromptInput: document.querySelector("#data-prompt-input"),
+  advancedPrompt: document.querySelector(".advanced-prompt"),
 };
 
 let parsedRows = [];
@@ -170,10 +173,12 @@ function loadSettings() {
   elements.apiKeyInput.value = localStorage.getItem(STORAGE_KEYS.apiKey) || "";
   elements.modelInput.value = model;
   elements.systemPromptInput.value = prompt;
+  elements.dataPromptInput.value = localStorage.getItem(STORAGE_KEYS.dataPrompt) || "";
 }
 
 function openSettingsDialog() {
   loadSettings();
+  elements.advancedPrompt.open = false;
   elements.dialog.showModal();
   window.setTimeout(() => elements.companyInput.focus(), 50);
 }
@@ -185,6 +190,7 @@ function saveSettings(event) {
   const apiKey = elements.apiKeyInput.value.trim();
   const model = normalizeModelName(elements.modelInput.value);
   const prompt = elements.systemPromptInput.value.trim();
+  const dataPrompt = elements.dataPromptInput.value.trim();
 
   if (!apiKey || !model || !prompt) {
     elements.settingsForm.reportValidity();
@@ -195,6 +201,7 @@ function saveSettings(event) {
   localStorage.setItem(STORAGE_KEYS.apiKey, apiKey);
   localStorage.setItem(STORAGE_KEYS.model, model);
   localStorage.setItem(STORAGE_KEYS.systemPrompt, prompt);
+  localStorage.setItem(STORAGE_KEYS.dataPrompt, dataPrompt);
 
   elements.companyTitle.textContent = company;
   elements.modelInput.value = model;
@@ -277,6 +284,7 @@ async function generateDashboard() {
   const apiKey = localStorage.getItem(STORAGE_KEYS.apiKey);
   const model = normalizeModelName(localStorage.getItem(STORAGE_KEYS.model) || DEFAULT_MODEL);
   const systemPrompt = localStorage.getItem(STORAGE_KEYS.systemPrompt) || DEFAULT_SYSTEM_PROMPT;
+  const dataPrompt = localStorage.getItem(STORAGE_KEYS.dataPrompt) || "";
 
   if (!apiKey) {
     setStatus("Guarda primero tu API Key de Gemini en Configuración.", "error");
@@ -305,7 +313,7 @@ async function generateDashboard() {
             role: "user",
             parts: [
               {
-                text: `Empresa: ${elements.companyTitle.textContent}\nRegistros totales disponibles localmente: ${parsedRows.length}\nLa API recibe únicamente esta muestra de ${sample.length} filas. El código final encontrará el conjunto completo en window.uploadedData:\n${JSON.stringify(sample)}`,
+                text: `Empresa: ${elements.companyTitle.textContent}\nRegistros totales disponibles localmente: ${parsedRows.length}\nInstrucciones específicas del usuario para este análisis: ${dataPrompt || "Sin instrucciones adicionales; elige el análisis más útil según los datos."}\nLa API recibe únicamente esta muestra de ${sample.length} filas. El código final encontrará el conjunto completo en window.uploadedData:\n${JSON.stringify(sample)}`,
               },
             ],
           },

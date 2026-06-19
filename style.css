@@ -145,6 +145,10 @@ body.dashboard-open { overflow: hidden; }
 .password-control { position: relative; }
 .password-control input { padding-right: 55px; }
 .password-control button { position: absolute; top: 50%; right: 7px; padding: 6px 8px; border: 0; color: var(--green); background: transparent; font-size: 11px; font-weight: 800; cursor: pointer; transform: translateY(-50%); }
+.advanced-prompt { margin: -2px 0 18px; border: 1px solid var(--line); border-radius: 10px; background: #fafcfb; }
+.advanced-prompt summary { padding: 12px 14px; color: var(--green); font-size: 12px; font-weight: 800; cursor: pointer; user-select: none; }
+.advanced-prompt[open] summary { border-bottom: 1px solid var(--line); }
+.advanced-prompt .field { margin: 0; padding: 14px; }
 .warning-box { display: flex; margin: 4px 0 22px; padding: 12px 14px; flex-direction: column; gap: 3px; border-left: 3px solid #d8a74e; color: #775a25; background: #fff8e9; font-size: 12px; line-height: 1.45; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
 

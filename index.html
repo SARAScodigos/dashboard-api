@@ -142,10 +142,23 @@
         </label>
 
         <label class="field">
-          <span>System Prompt</span>
-          <textarea id="system-prompt-input" rows="8" required></textarea>
-          <small>Puedes definir aquí las reglas visuales y contables que debe seguir el modelo.</small>
+          <span>Instrucciones específicas para tus datos</span>
+          <textarea
+            id="data-prompt-input"
+            rows="5"
+            placeholder="Ejemplo: analiza principalmente la rotación del inventario, agrupa por categoría y destaca productos con bajo stock."
+          ></textarea>
+          <small>Describe qué deseas analizar, qué columnas priorizar o qué información debería omitir el dashboard.</small>
         </label>
+
+        <details class="advanced-prompt">
+          <summary>Ver prompt base automático</summary>
+          <label class="field">
+            <span>System Prompt</span>
+            <textarea id="system-prompt-input" rows="10" required></textarea>
+            <small>Reglas técnicas que utiliza internamente el generador. Modifícalas solo si necesitas un comportamiento avanzado.</small>
+          </label>
+        </details>
 
         <div class="warning-box">
           <strong>Uso local solamente</strong>
