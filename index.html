@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Generador local de dashboards contables a partir de archivos CSV."
+    />
+    <title>Generador de Dashboards Contables</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <a class="brand" href="#" aria-label="Inicio">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" role="img">
+            <path d="M7 23V14M16 23V7M25 23v-5" />
+          </svg>
+        </span>
+        <span>
+          <small>Dashboard contable</small>
+          <strong id="company-title">Mi Empresa</strong>
+        </span>
+      </a>
+
+      <button id="open-settings-button" class="button button-secondary" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
+          <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.55V21h-4v-.08A1.7 1.7 0 0 0 8.95 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1.03H3v-4h.08A1.7 1.7 0 0 0 4.6 8.95a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1.03-1.55V3h4v.08A1.7 1.7 0 0 0 15.05 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.14.62.65 1.02 1.55 1.03H21v4h-.08A1.7 1.7 0 0 0 19.4 15Z" />
+        </svg>
+        Configuración
+      </button>
+    </header>
+
+    <main class="workspace">
+      <section id="welcome-panel" class="welcome-panel" aria-labelledby="welcome-title">
+        <div class="eyebrow"><span></span> Inteligencia contable</div>
+        <h1 id="welcome-title">Convierte tus datos en<br /><em>decisiones claras.</em></h1>
+        <p>
+          Carga un archivo CSV y genera un dashboard interactivo adaptado a tus datos en
+          cuestión de segundos.
+        </p>
+
+        <div class="action-card">
+          <input id="csv-input" type="file" accept=".csv,text/csv" hidden />
+          <button id="upload-button" class="upload-zone" type="button">
+            <span class="upload-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 15v4h14v-4" />
+              </svg>
+            </span>
+            <span class="upload-copy">
+              <strong id="file-name">Selecciona tu archivo CSV</strong>
+              <small id="file-details">Solo 10 filas se envían a Gemini; el CSV completo se procesa localmente</small>
+            </span>
+            <span class="select-label">Explorar</span>
+          </button>
+
+          <button id="generate-button" class="button button-primary" type="button" disabled>
+            <span>Generar dashboard</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m9 18 6-6-6-6" />
+            </svg>
+          </button>
+        </div>
+
+        <div id="status-message" class="status-message" role="status" aria-live="polite"></div>
+
+        <section id="dashboard-ready-panel" class="dashboard-ready-panel" hidden aria-labelledby="dashboard-ready-title">
+          <div class="ready-heading">
+            <span class="ready-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" /></svg>
+            </span>
+            <div>
+              <strong id="dashboard-ready-title">Tu dashboard está listo</strong>
+              <small id="dashboard-ready-details">Resultado guardado en este navegador</small>
+            </div>
+          </div>
+          <p class="ai-warning">
+            El código generado por IA puede contener errores. Si el resultado no es correcto,
+            puedes generar nuevamente el dashboard.
+          </p>
+          <div class="ready-actions">
+            <button id="regenerate-button" class="button button-secondary" type="button">
+              Generar nuevamente
+            </button>
+            <button id="view-dashboard-button" class="button button-primary" type="button">
+              Ver dashboard
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+            </button>
+          </div>
+        </section>
+
+        <div class="privacy-note">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7 10V8a5 5 0 0 1 10 0v2M5 10h14v11H5z" />
+          </svg>
+          <span><strong>Procesamiento local.</strong> El archivo no se sube a ningún servidor propio; solo la muestra se envía a Gemini.</span>
+        </div>
+      </section>
+
+      <!-- Contenedor estricto solicitado. El iframe aislado se monta únicamente aquí. -->
+      <div id="dashboard-render-zone" aria-live="polite"></div>
+    </main>
+
+    <dialog id="settings-dialog" class="settings-dialog">
+      <form id="settings-form" method="dialog">
+        <div class="dialog-header">
+          <div>
+            <span class="eyebrow"><span></span> Preferencias</span>
+            <h2>Configuración</h2>
+          </div>
+          <button id="close-settings-button" class="icon-button" type="button" aria-label="Cerrar">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
+          </button>
+        </div>
+
+        <label class="field">
+          <span>Nombre de la empresa</span>
+          <input id="company-name-input" type="text" maxlength="80" placeholder="Mi Empresa" />
+        </label>
+
+        <label class="field">
+          <span>API Key de Google Gemini</span>
+          <span class="password-control">
+            <input id="api-key-input" type="password" autocomplete="off" placeholder="AIza..." required />
+            <button id="toggle-key-button" type="button" aria-label="Mostrar API Key">Ver</button>
+          </span>
+          <small>Se guarda únicamente en el localStorage de este navegador.</small>
+        </label>
+
+        <label class="field">
+          <span>Modelo Gemini</span>
+          <input id="model-input" type="text" value="gemini-3.1-pro-preview" required />
+        </label>
+
+        <label class="field">
+          <span>System Prompt</span>
+          <textarea id="system-prompt-input" rows="8" required></textarea>
+          <small>Puedes definir aquí las reglas visuales y contables que debe seguir el modelo.</small>
+        </label>
+
+        <div class="warning-box">
+          <strong>Uso local solamente</strong>
+          <span>Una clave usada desde el navegador puede ser inspeccionada. Para producción, usa un backend seguro.</span>
+        </div>
+
+        <div class="dialog-actions">
+          <button id="clear-settings-button" class="button button-ghost" type="button">Borrar datos</button>
+          <button class="button button-primary" type="submit">Guardar configuración</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.5.3/papaparse.min.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
