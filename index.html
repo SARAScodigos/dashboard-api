@@ -50,7 +50,7 @@
         </p>
 
         <div class="action-card">
-          <input id="csv-input" type="file" accept=".csv,text/csv" hidden />
+          <input id="csv-input" type="file" accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.xls,application/vnd.ms-excel" hidden />
           <button id="upload-button" class="upload-zone" type="button">
             <span class="upload-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24">
@@ -58,8 +58,8 @@
               </svg>
             </span>
             <span class="upload-copy">
-              <strong id="file-name">Selecciona tu archivo CSV</strong>
-              <small id="file-details">Solo 10 filas se envían al proveedor; el CSV completo se procesa localmente</small>
+              <strong id="file-name">Selecciona tu archivo (.csv / .xlsx)</strong>
+              <small id="file-details">Solo 10 filas se envían al proveedor; el archivo completo se procesa localmente</small>
             </span>
             <span class="select-label">Explorar</span>
           </button>
