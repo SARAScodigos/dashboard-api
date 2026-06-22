@@ -1,14 +1,17 @@
 # Generador Dinámico de Dashboards Contables
 
-Aplicación web local que transforma archivos CSV en dashboards contables interactivos mediante Google Gemini. Todo funciona directamente en el navegador: no requiere servidor propio, instalación de frontend ni base de datos remota.
+Aplicación web local que transforma archivos CSV en dashboards contables interactivos mediante Google Gemini, Anthropic Claude u OpenAI. Todo funciona directamente en el navegador: no requiere servidor propio, instalación de frontend ni base de datos remota.
 
-Gemini recibe una muestra pequeña del archivo para comprender su estructura y generar el código del dashboard. Los cálculos finales se ejecutan localmente sobre los datos completos del CSV.
+El proveedor seleccionado recibe una muestra pequeña del archivo para comprender su estructura y generar el código del dashboard. Los cálculos finales se ejecutan localmente sobre los datos completos del CSV.
 
 ## Características
 
 - Carga de archivos CSV mediante selección o arrastrar y soltar.
 - Conversión de CSV a objetos JavaScript con PapaParse.
-- Envío de solo 10 filas de muestra a Gemini.
+- Selector de proveedor y modelos preconfigurados.
+- Compatibilidad con Google Gemini, Anthropic Claude y OpenAI.
+- Clave API independiente para cada proveedor.
+- Envío de solo 10 filas de muestra al proveedor seleccionado.
 - Generación dinámica de HTML, JavaScript, Tailwind CSS y gráficos Plotly.
 - Procesamiento del CSV completo dentro del navegador.
 - Instrucciones de análisis personalizadas por el usuario.
@@ -20,7 +23,7 @@ Gemini recibe una muestra pequeña del archivo para comprender su estructura y g
 - Vista del dashboard a pantalla completa.
 - Regeneración cuando el resultado de la IA contiene errores o no es adecuado.
 - Diagnóstico de respuestas y errores mediante la consola del navegador.
-- Advertencia antes de recargar mientras Gemini está generando.
+- Advertencia antes de recargar mientras la IA está generando.
 
 ## Arquitectura
 
@@ -29,8 +32,13 @@ flowchart LR
     A[Archivo CSV] --> B[PapaParse]
     B --> C[parsedRows]
     C --> D[Primeras 10 filas]
-    D --> E[API de Gemini]
-    E --> F[Código HTML y JavaScript]
+    D --> E{Proveedor seleccionado}
+    E --> E1[Gemini generateContent]
+    E --> E2[Claude Messages]
+    E --> E3[OpenAI Responses]
+    E1 --> F[Código HTML y JavaScript]
+    E2 --> F
+    E3 --> F
     F --> G[Limpieza del código]
     G --> H[iframe sandbox]
     C --> H
@@ -42,10 +50,10 @@ flowchart LR
 
 La aplicación tiene dos rutas de datos diferentes:
 
-1. **Ruta de inteligencia artificial:** solo las primeras 10 filas se envían a Gemini para que pueda inferir columnas, tipos de datos y posibles visualizaciones.
+1. **Ruta de inteligencia artificial:** solo las primeras 10 filas se envían al proveedor seleccionado para que pueda inferir columnas, tipos de datos y posibles visualizaciones.
 2. **Ruta de procesamiento local:** el CSV completo permanece en el navegador y se entrega al código generado mediante `window.uploadedData`.
 
-Esto permite que Gemini escriba los algoritmos sin recibir el documento completo. Por ejemplo, puede generar código que descubra categorías únicas y calcule totales:
+Esto permite que el modelo escriba los algoritmos sin recibir el documento completo. Por ejemplo, puede generar código que descubra categorías únicas y calcule totales:
 
 ```js
 const categorias = [
@@ -61,21 +69,29 @@ const totales = categorias.map((categoria) =>
 
 Las categorías y los resultados no se copian desde las 10 filas de muestra: se calculan en tiempo de ejecución utilizando todo el CSV disponible localmente.
 
-## Gestión de la API de Gemini
+## Gestión de proveedores y API Keys
 
-La API de Gemini es gestionada directamente por cada usuario de la aplicación.
+Las APIs son gestionadas directamente por cada usuario de la aplicación.
 
 El usuario debe proporcionar:
 
-- Su propia API Key de Google Gemini.
+- Su propia API Key de Google Gemini, Anthropic Claude u OpenAI.
 - El modelo que desea utilizar.
 - Instrucciones específicas para analizar sus datos, si las necesita.
 
-La aplicación no incluye, comparte ni administra una clave central. Tampoco existe un backend intermediario: el navegador realiza la solicitud directamente al endpoint REST de Gemini utilizando la clave proporcionada.
+La aplicación no incluye, comparte ni administra una clave central. Tampoco existe un backend intermediario: el navegador realiza la solicitud directamente al endpoint REST del proveedor utilizando la clave proporcionada.
 
 ```text
-Navegador del usuario → API REST de Gemini
+Navegador del usuario → API REST de Gemini, Claude u OpenAI
 ```
+
+| Proveedor | API utilizada | Modelo predeterminado |
+| --- | --- | --- |
+| Google Gemini | `models.generateContent` | `gemini-3.5-flash` |
+| Anthropic Claude | `POST /v1/messages` | `claude-sonnet-4-6` |
+| OpenAI | `POST /v1/responses` | `gpt-4.1` |
+
+Cada proveedor conserva su propia clave y su último modelo seleccionado. Esto permite cambiar rápidamente de servicio sin recordar los identificadores técnicos ni volver a introducir las otras claves.
 
 La clave se guarda en `localStorage` para evitar solicitarla en cada sesión. Esto impide que quede escrita en el código fuente, pero **no cifra ni vuelve secreta la clave**. Cualquier persona con acceso al navegador y sus herramientas de desarrollo podría inspeccionarla.
 
@@ -88,8 +104,9 @@ Por este motivo, la aplicación está pensada para uso local o controlado. Para 
 El usuario abre el formulario **Configuración** e introduce:
 
 - Nombre de la empresa.
-- API Key de Gemini.
-- Modelo Gemini.
+- Proveedor de IA.
+- API Key del proveedor.
+- Modelo disponible para ese proveedor.
 - Instrucciones específicas para sus datos.
 
 El prompt técnico del sistema se carga automáticamente y permanece oculto dentro de **Ver prompt base automático**. Puede editarse para casos avanzados.
@@ -111,7 +128,7 @@ El resultado queda temporalmente en:
 parsedRows
 ```
 
-### 3. Solicitud a Gemini
+### 3. Solicitud al proveedor de IA
 
 Cuando se pulsa **Generar dashboard**, la aplicación toma un máximo de 10 filas:
 
@@ -119,7 +136,7 @@ Cuando se pulsa **Generar dashboard**, la aplicación toma un máximo de 10 fila
 const sample = parsedRows.slice(0, 10);
 ```
 
-La solicitud incluye:
+La solicitud se adapta al proveedor seleccionado e incluye:
 
 - Prompt técnico del sistema.
 - Reglas de ejecución dinámica.
@@ -132,7 +149,7 @@ El CSV completo no se incluye en la solicitud.
 
 ### 4. Recepción y limpieza del código
 
-Gemini devuelve HTML, CSS y JavaScript. Antes de utilizarlo, la aplicación:
+El modelo devuelve HTML, CSS y JavaScript. Antes de utilizarlo, la aplicación:
 
 - Elimina delimitadores Markdown como ` ```html `.
 - Elimina etiquetas `base` y redirecciones automáticas.
@@ -172,7 +189,7 @@ El código generado puede recorrer `window.uploadedData` con `map`, `filter`, `r
 
 ### 7. Resultado y persistencia
 
-Cuando Gemini termina:
+Cuando el proveedor termina:
 
 - El dashboard no se abre automáticamente.
 - Aparece una tarjeta indicando que está listo.
@@ -189,9 +206,9 @@ Si se recarga mientras la petición todavía está en curso, el navegador muestr
 
 Se utiliza para preferencias pequeñas:
 
-- API Key.
+- Proveedor seleccionado y una API Key independiente por proveedor.
 - Nombre de la empresa.
-- Modelo Gemini.
+- Modelo seleccionado para cada proveedor.
 - Prompt técnico.
 - Instrucciones específicas del usuario.
 
@@ -225,7 +242,7 @@ La aplicación carga las dependencias mediante CDN:
 - **Plotly.js:** gráficos interactivos.
 - **Google Fonts:** tipografías de la interfaz principal.
 
-Por ello, aunque el archivo CSV se procesa localmente, se necesita conexión a Internet para cargar estas dependencias y comunicarse con Gemini.
+Por ello, aunque el archivo CSV se procesa localmente, se necesita conexión a Internet para cargar estas dependencias y comunicarse con el proveedor de IA.
 
 ## Ejecución
 
@@ -273,7 +290,7 @@ La evolución recomendada para soportar millones de filas es implementar un modo
 - Siempre debe revisarse el resultado antes de utilizarlo para decisiones contables.
 - El aislamiento reduce el riesgo, pero no convierte el código generado en código auditado.
 - La API Key almacenada en el navegador no es apropiada para una aplicación pública de producción.
-- Solo 10 filas llegan a Gemini; estas podrían no representar todos los casos especiales del archivo.
+- Solo 10 filas llegan al modelo; estas podrían no representar todos los casos especiales del archivo.
 - La calidad del dashboard depende de los encabezados, consistencia y calidad del CSV.
 - Las advertencias de mapas de fuentes de las librerías CDN no suelen impedir el funcionamiento del dashboard.
 
@@ -281,7 +298,7 @@ La evolución recomendada para soportar millones de filas es implementar un modo
 
 La consola del navegador muestra:
 
-- Respuesta JSON completa de Gemini.
+- Respuesta JSON completa del proveedor seleccionado.
 - Código devuelto por el modelo.
 - Código limpio enviado al iframe.
 - Confirmación de carga del iframe.
@@ -295,5 +312,4 @@ Para abrirla:
 F12 → Console
 ```
 
-Si el dashboard no aparece, revise primero los mensajes `Gemini API` y `Dashboard · diagnóstico visual`.
-
+Si el dashboard no aparece, revise primero los mensajes del proveedor (`Google Gemini API`, `Anthropic Claude API` u `OpenAI API`) y `Dashboard · diagnóstico visual`.

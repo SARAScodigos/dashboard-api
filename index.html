@@ -10,6 +10,7 @@
     <title>Generador de Dashboards Contables</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="icon" type="image/x-icon" href="contabilidad.ico" />
     <link
       href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap"
       rel="stylesheet"
@@ -58,7 +59,7 @@
             </span>
             <span class="upload-copy">
               <strong id="file-name">Selecciona tu archivo CSV</strong>
-              <small id="file-details">Solo 10 filas se envían a Gemini; el CSV completo se procesa localmente</small>
+              <small id="file-details">Solo 10 filas se envían al proveedor; el CSV completo se procesa localmente</small>
             </span>
             <span class="select-label">Explorar</span>
           </button>
@@ -128,17 +129,28 @@
         </label>
 
         <label class="field">
-          <span>API Key de Google Gemini</span>
+          <span>Proveedor de IA</span>
+          <select id="provider-input" required>
+            <option value="gemini">Google Gemini</option>
+            <option value="claude">Anthropic Claude</option>
+            <option value="openai">OpenAI</option>
+          </select>
+          <small>Cambia de proveedor rápidamente si un servicio o modelo no está disponible.</small>
+        </label>
+
+        <label class="field">
+          <span id="api-key-label">API Key de Google Gemini</span>
           <span class="password-control">
             <input id="api-key-input" type="password" autocomplete="off" placeholder="AIza..." required />
             <button id="toggle-key-button" type="button" aria-label="Mostrar API Key">Ver</button>
           </span>
-          <small>Se guarda únicamente en el localStorage de este navegador.</small>
+          <small id="api-key-help">Se guarda únicamente en el localStorage de este navegador.</small>
         </label>
 
         <label class="field">
-          <span>Modelo Gemini</span>
-          <input id="model-input" type="text" value="gemini-3.1-pro-preview" required />
+          <span>Modelo</span>
+          <select id="model-input" required></select>
+          <small>Los nombres técnicos se administran automáticamente según el proveedor.</small>
         </label>
 
         <label class="field">
@@ -162,7 +174,7 @@
 
         <div class="warning-box">
           <strong>Uso local solamente</strong>
-          <span>Una clave usada desde el navegador puede ser inspeccionada. Para producción, usa un backend seguro.</span>
+          <span>Las claves usadas desde el navegador pueden ser inspeccionadas. Para producción, usa un backend seguro.</span>
         </div>
 
         <div class="dialog-actions">

@@ -137,10 +137,11 @@ body.dashboard-open { overflow: hidden; }
 .icon-button svg { width: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
 .field { display: grid; gap: 7px; margin-bottom: 18px; }
 .field > span:first-child { font-size: 13px; font-weight: 700; }
-.field input, .field textarea { width: 100%; border: 1px solid var(--line); border-radius: 9px; color: var(--ink); background: #fbfcfb; outline: none; transition: border-color .18s, box-shadow .18s; }
-.field input { height: 45px; padding: 0 12px; }
+.field input, .field select, .field textarea { width: 100%; border: 1px solid var(--line); border-radius: 9px; color: var(--ink); background: #fbfcfb; outline: none; transition: border-color .18s, box-shadow .18s; }
+.field input, .field select { height: 45px; padding: 0 12px; }
+.field select { cursor: pointer; }
 .field textarea { min-height: 150px; padding: 12px; line-height: 1.5; resize: vertical; }
-.field input:focus, .field textarea:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(30,90,61,.1); }
+.field input:focus, .field select:focus, .field textarea:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(30,90,61,.1); }
 .field small { color: var(--muted); font-size: 11px; }
 .password-control { position: relative; }
 .password-control input { padding-right: 55px; }

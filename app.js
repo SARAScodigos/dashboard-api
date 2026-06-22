@@ -9,9 +9,13 @@
  */
 
 const STORAGE_KEYS = {
+  provider: "accountingDashboard.aiProvider",
   apiKey: "accountingDashboard.geminiApiKey",
+  claudeApiKey: "accountingDashboard.claudeApiKey",
+  openaiApiKey: "accountingDashboard.openaiApiKey",
   company: "accountingDashboard.companyName",
   model: "accountingDashboard.geminiModel",
+  providerModels: "accountingDashboard.providerModels",
   systemPrompt: "accountingDashboard.systemPrompt",
   dataPrompt: "accountingDashboard.dataPrompt",
 };
@@ -23,7 +27,45 @@ const DASHBOARD_DB = {
   lastKey: "last-generated-dashboard",
 };
 
-const DEFAULT_MODEL = "gemini-3.5-flash";
+const DEFAULT_PROVIDER = "gemini";
+const PROVIDERS = {
+  gemini: {
+    name: "Google Gemini",
+    keyLabel: "API Key de Google Gemini",
+    keyPlaceholder: "AIza...",
+    keyStorage: STORAGE_KEYS.apiKey,
+    defaultModel: "gemini-3.5-flash",
+    models: [
+      ["gemini-3.5-flash", "Gemini 3.5 Flash (recomendado)"],
+      ["gemini-3.1-pro-preview", "Gemini 3.1 Pro Preview"],
+      ["gemini-3-flash-preview", "Gemini 3 Flash Preview"],
+    ],
+  },
+  claude: {
+    name: "Anthropic Claude",
+    keyLabel: "API Key de Anthropic Claude",
+    keyPlaceholder: "sk-ant-...",
+    keyStorage: STORAGE_KEYS.claudeApiKey,
+    defaultModel: "claude-sonnet-4-6",
+    models: [
+      ["claude-sonnet-4-6", "Claude Sonnet 4.6 (recomendado)"],
+      ["claude-opus-4-8", "Claude Opus 4.8"],
+      ["claude-haiku-4-5", "Claude Haiku 4.5"],
+    ],
+  },
+  openai: {
+    name: "OpenAI",
+    keyLabel: "API Key de OpenAI",
+    keyPlaceholder: "sk-...",
+    keyStorage: STORAGE_KEYS.openaiApiKey,
+    defaultModel: "gpt-5.5",
+    models: [
+      ["gpt-5.5", "GPT-5.5"],
+      ["gpt-4.1-mini", "GPT-4.1 mini"],
+      ["gpt-4.1", "GPT-4.1 (serie 4 recomendada)"],
+    ],
+  },
+};
 const MAX_RECORDS = 10;
 const DEFAULT_SYSTEM_PROMPT = `Eres un 'Generador de Dashboards Financieros Automatizado'. Tu único propósito es recibir una muestra de datos en formato JSON (provenientes de un CSV) para comprender su estructura y nombres de columnas, y devolver CÓDIGO HTML Y JAVASCRIPT funcional, dinámico y algorítmico para visualizar la totalidad de los datos.
 
@@ -84,6 +126,9 @@ const elements = {
   closeSettings: document.querySelector("#close-settings-button"),
   clearSettings: document.querySelector("#clear-settings-button"),
   toggleKey: document.querySelector("#toggle-key-button"),
+  providerInput: document.querySelector("#provider-input"),
+  apiKeyLabel: document.querySelector("#api-key-label"),
+  apiKeyHelp: document.querySelector("#api-key-help"),
   apiKeyInput: document.querySelector("#api-key-input"),
   companyInput: document.querySelector("#company-name-input"),
   modelInput: document.querySelector("#model-input"),
@@ -96,6 +141,8 @@ let parsedRows = [];
 let isGenerating = false;
 let currentFileName = "CSV restaurado";
 let lastDashboard = null;
+let activeProvider = DEFAULT_PROVIDER;
+let providerDrafts = {};
 
 initialize();
 
@@ -114,6 +161,7 @@ function bindEvents() {
   elements.settingsForm.addEventListener("submit", saveSettings);
   elements.clearSettings.addEventListener("click", clearSettings);
   elements.toggleKey.addEventListener("click", toggleApiKeyVisibility);
+  elements.providerInput.addEventListener("change", handleProviderChange);
 
   elements.uploadButton.addEventListener("click", () => elements.csvInput.click());
   elements.csvInput.addEventListener("change", (event) => {
@@ -165,15 +213,75 @@ function handleGlobalKeydown(event) {
 
 function loadSettings() {
   const company = localStorage.getItem(STORAGE_KEYS.company) || "Mi Empresa";
-  const model = localStorage.getItem(STORAGE_KEYS.model) || DEFAULT_MODEL;
   const prompt = localStorage.getItem(STORAGE_KEYS.systemPrompt) || DEFAULT_SYSTEM_PROMPT;
+  const storedProvider = localStorage.getItem(STORAGE_KEYS.provider);
+  activeProvider = PROVIDERS[storedProvider] ? storedProvider : DEFAULT_PROVIDER;
+
+  let storedModels = {};
+  try {
+    storedModels = JSON.parse(localStorage.getItem(STORAGE_KEYS.providerModels) || "{}");
+  } catch {
+    storedModels = {};
+  }
+
+  providerDrafts = Object.fromEntries(
+    Object.entries(PROVIDERS).map(([provider, config]) => [
+      provider,
+      {
+        apiKey: localStorage.getItem(config.keyStorage) || "",
+        model:
+          storedModels[provider] ||
+          (provider === "gemini" ? localStorage.getItem(STORAGE_KEYS.model) : "") ||
+          config.defaultModel,
+      },
+    ]),
+  );
 
   elements.companyTitle.textContent = company;
   elements.companyInput.value = company;
-  elements.apiKeyInput.value = localStorage.getItem(STORAGE_KEYS.apiKey) || "";
-  elements.modelInput.value = model;
   elements.systemPromptInput.value = prompt;
   elements.dataPromptInput.value = localStorage.getItem(STORAGE_KEYS.dataPrompt) || "";
+  elements.providerInput.value = activeProvider;
+  populateProviderFields(activeProvider);
+}
+
+function captureCurrentProviderDraft() {
+  if (!PROVIDERS[activeProvider]) return;
+  providerDrafts[activeProvider] = {
+    apiKey: elements.apiKeyInput.value.trim(),
+    model: elements.modelInput.value,
+  };
+}
+
+function handleProviderChange() {
+  captureCurrentProviderDraft();
+  activeProvider = elements.providerInput.value;
+  populateProviderFields(activeProvider);
+}
+
+function populateProviderFields(provider) {
+  const config = PROVIDERS[provider];
+  const draft = providerDrafts[provider] || {
+    apiKey: "",
+    model: config.defaultModel,
+  };
+
+  elements.apiKeyLabel.textContent = config.keyLabel;
+  elements.apiKeyInput.placeholder = config.keyPlaceholder;
+  elements.apiKeyInput.value = draft.apiKey;
+  elements.apiKeyHelp.textContent = `Esta clave de ${config.name} se guarda únicamente en el localStorage de este navegador.`;
+
+  elements.modelInput.replaceChildren(
+    ...config.models.map(([value, label]) => {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = label;
+      return option;
+    }),
+  );
+
+  const modelExists = config.models.some(([value]) => value === draft.model);
+  elements.modelInput.value = modelExists ? draft.model : config.defaultModel;
 }
 
 function openSettingsDialog() {
@@ -186,9 +294,11 @@ function openSettingsDialog() {
 function saveSettings(event) {
   event.preventDefault();
 
+  captureCurrentProviderDraft();
   const company = elements.companyInput.value.trim() || "Mi Empresa";
-  const apiKey = elements.apiKeyInput.value.trim();
-  const model = normalizeModelName(elements.modelInput.value);
+  const provider = elements.providerInput.value;
+  const apiKey = providerDrafts[provider]?.apiKey || "";
+  const model = providerDrafts[provider]?.model || "";
   const prompt = elements.systemPromptInput.value.trim();
   const dataPrompt = elements.dataPromptInput.value.trim();
 
@@ -198,15 +308,29 @@ function saveSettings(event) {
   }
 
   localStorage.setItem(STORAGE_KEYS.company, company);
-  localStorage.setItem(STORAGE_KEYS.apiKey, apiKey);
-  localStorage.setItem(STORAGE_KEYS.model, model);
+  localStorage.setItem(STORAGE_KEYS.provider, provider);
+  Object.entries(PROVIDERS).forEach(([providerId, config]) => {
+    localStorage.setItem(config.keyStorage, providerDrafts[providerId]?.apiKey || "");
+  });
+  localStorage.setItem(
+    STORAGE_KEYS.providerModels,
+    JSON.stringify(
+      Object.fromEntries(
+        Object.entries(PROVIDERS).map(([providerId, config]) => [
+          providerId,
+          providerDrafts[providerId]?.model || config.defaultModel,
+        ]),
+      ),
+    ),
+  );
+  // Mantiene compatibilidad con configuraciones antiguas de Gemini.
+  localStorage.setItem(STORAGE_KEYS.model, providerDrafts.gemini.model);
   localStorage.setItem(STORAGE_KEYS.systemPrompt, prompt);
   localStorage.setItem(STORAGE_KEYS.dataPrompt, dataPrompt);
 
   elements.companyTitle.textContent = company;
-  elements.modelInput.value = model;
   elements.dialog.close();
-  setStatus("Configuración guardada en este navegador.");
+  setStatus(`${PROVIDERS[provider].name} y el modelo ${model} quedaron seleccionados.`);
 }
 
 async function clearSettings() {
@@ -219,7 +343,7 @@ async function clearSettings() {
   elements.generateButton.disabled = true;
   elements.uploadButton.classList.remove("has-file");
   elements.fileName.textContent = "Selecciona tu archivo CSV";
-  elements.fileDetails.textContent = "Solo 10 filas se envían a Gemini; el CSV completo se procesa localmente";
+  elements.fileDetails.textContent = "Solo 10 filas se envían al proveedor; el CSV completo se procesa localmente";
   closeDashboardView();
   loadSettings();
   setStatus("Configuración, datos y dashboard guardado eliminados.");
@@ -281,53 +405,45 @@ function parseCsv(file) {
 async function generateDashboard() {
   if (isGenerating || !parsedRows.length) return;
 
-  const apiKey = localStorage.getItem(STORAGE_KEYS.apiKey);
-  const model = normalizeModelName(localStorage.getItem(STORAGE_KEYS.model) || DEFAULT_MODEL);
+  const storedProvider = localStorage.getItem(STORAGE_KEYS.provider);
+  const provider = PROVIDERS[storedProvider] ? storedProvider : DEFAULT_PROVIDER;
+  const providerConfig = PROVIDERS[provider];
+  const apiKey = localStorage.getItem(providerConfig.keyStorage) || "";
+  let storedModels = {};
+  try {
+    storedModels = JSON.parse(localStorage.getItem(STORAGE_KEYS.providerModels) || "{}");
+  } catch {
+    storedModels = {};
+  }
+  const model = normalizeModelName(storedModels[provider] || providerConfig.defaultModel);
   const systemPrompt = localStorage.getItem(STORAGE_KEYS.systemPrompt) || DEFAULT_SYSTEM_PROMPT;
   const dataPrompt = localStorage.getItem(STORAGE_KEYS.dataPrompt) || "";
 
   if (!apiKey) {
-    setStatus("Guarda primero tu API Key de Gemini en Configuración.", "error");
+    setStatus(`Guarda primero tu API Key de ${providerConfig.name} en Configuración.`, "error");
     openSettingsDialog();
     return;
   }
 
   setGenerating(true);
-  setStatus("Gemini está analizando la muestra y diseñando el dashboard…", "loading");
+  setStatus(`${providerConfig.name} está analizando la muestra y diseñando el dashboard…`, "loading");
 
   try {
     const sample = parsedRows.slice(0, MAX_RECORDS);
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": apiKey,
-      },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [{ text: `${systemPrompt}\n\n${RUNTIME_DATA_INSTRUCTIONS}` }],
-        },
-        contents: [
-          {
-            role: "user",
-            parts: [
-              {
-                text: `Empresa: ${elements.companyTitle.textContent}\nRegistros totales disponibles localmente: ${parsedRows.length}\nInstrucciones específicas del usuario para este análisis: ${dataPrompt || "Sin instrucciones adicionales; elige el análisis más útil según los datos."}\nLa API recibe únicamente esta muestra de ${sample.length} filas. El código final encontrará el conjunto completo en window.uploadedData:\n${JSON.stringify(sample)}`,
-              },
-            ],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 32768,
-        },
-      }),
+    const completeSystemPrompt = `${systemPrompt}\n\n${RUNTIME_DATA_INSTRUCTIONS}`;
+    const userMessage = `Empresa: ${elements.companyTitle.textContent}\nRegistros totales disponibles localmente: ${parsedRows.length}\nInstrucciones específicas del usuario para este análisis: ${dataPrompt || "Sin instrucciones adicionales; elige el análisis más útil según los datos."}\nLa API recibe únicamente esta muestra de ${sample.length} filas. El código final encontrará el conjunto completo en window.uploadedData:\n${JSON.stringify(sample)}`;
+    const request = createProviderRequest({
+      provider,
+      apiKey,
+      model,
+      systemPrompt: completeSystemPrompt,
+      userMessage,
     });
+    const response = await fetch(request.endpoint, request.options);
 
     const payload = await response.json().catch(() => ({}));
 
-    console.groupCollapsed(`Gemini API · respuesta HTTP ${response.status}`);
+    console.groupCollapsed(`${providerConfig.name} API · respuesta HTTP ${response.status}`);
     console.log("Respuesta JSON completa:", payload);
     console.groupEnd();
 
@@ -335,14 +451,18 @@ async function generateDashboard() {
       throw new Error(payload.error?.message || `La API respondió con estado ${response.status}.`);
     }
 
-    const generatedCode = extractResponseText(payload);
-    console.groupCollapsed("Gemini API · código devuelto");
+    const generatedCode = extractResponseText(provider, payload);
+    console.groupCollapsed(`${providerConfig.name} API · código devuelto`);
     console.log(generatedCode || "(respuesta sin texto)");
     console.groupEnd();
 
     if (!generatedCode) {
-      const reason = payload.promptFeedback?.blockReason || payload.candidates?.[0]?.finishReason;
-      throw new Error(reason ? `Gemini no devolvió contenido (${reason}).` : "Gemini devolvió una respuesta vacía.");
+      const reason = getEmptyResponseReason(provider, payload);
+      throw new Error(
+        reason
+          ? `${providerConfig.name} no devolvió contenido (${reason}).`
+          : `${providerConfig.name} devolvió una respuesta vacía.`,
+      );
     }
 
     const cleanedCode = cleanGeneratedCode(generatedCode);
@@ -355,6 +475,8 @@ async function generateDashboard() {
       data: parsedRows,
       fileName: currentFileName,
       rowCount: parsedRows.length,
+      provider,
+      model,
       createdAt: Date.now(),
     };
 
@@ -370,7 +492,7 @@ async function generateDashboard() {
     showDashboardReady(snapshot, persisted);
     setStatus(
       persisted
-        ? `Dashboard generado y guardado. Gemini analizó ${sample.length} filas; los cálculos usarán ${formatNumber(parsedRows.length)} filas localmente.`
+        ? `Dashboard generado y guardado con ${providerConfig.name} (${model}). La IA analizó ${sample.length} filas; los cálculos usarán ${formatNumber(parsedRows.length)} filas localmente.`
         : "Dashboard generado, pero el navegador no permitió guardarlo. Puedes verlo mientras esta página permanezca abierta.",
       persisted ? "info" : "error",
     );
@@ -382,11 +504,97 @@ async function generateDashboard() {
   }
 }
 
-function extractResponseText(payload) {
+function createProviderRequest({ provider, apiKey, model, systemPrompt, userMessage }) {
+  if (provider === "claude") {
+    return {
+      endpoint: "https://api.anthropic.com/v1/messages",
+      options: {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 32768,
+          temperature: 0.2,
+          system: systemPrompt,
+          messages: [{ role: "user", content: userMessage }],
+        }),
+      },
+    };
+  }
+
+  if (provider === "openai") {
+    return {
+      endpoint: "https://api.openai.com/v1/responses",
+      options: {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          instructions: systemPrompt,
+          input: userMessage,
+          max_output_tokens: 32768,
+        }),
+      },
+    };
+  }
+
+  return {
+    endpoint: `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+    options: {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
+      },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        contents: [{ role: "user", parts: [{ text: userMessage }] }],
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 32768,
+        },
+      }),
+    },
+  };
+}
+
+function extractResponseText(provider, payload) {
+  if (provider === "claude") {
+    return (payload.content || [])
+      .filter((block) => block.type === "text")
+      .map((block) => block.text || "")
+      .join("\n")
+      .trim();
+  }
+
+  if (provider === "openai") {
+    if (typeof payload.output_text === "string") return payload.output_text.trim();
+    return (payload.output || [])
+      .flatMap((item) => item.content || [])
+      .filter((content) => content.type === "output_text")
+      .map((content) => content.text || "")
+      .join("\n")
+      .trim();
+  }
+
   return (payload.candidates?.[0]?.content?.parts || [])
     .map((part) => part.text || "")
     .join("\n")
     .trim();
+}
+
+function getEmptyResponseReason(provider, payload) {
+  if (provider === "claude") return payload.stop_reason;
+  if (provider === "openai") return payload.status || payload.incomplete_details?.reason;
+  return payload.promptFeedback?.blockReason || payload.candidates?.[0]?.finishReason;
 }
 
 function cleanGeneratedCode(rawCode) {
@@ -430,7 +638,9 @@ function renderInSandbox(generatedHtml, uploadedData) {
       <button class="button button-secondary" data-action="regenerate" type="button">Generar nuevamente</button>
       <button class="button button-primary" data-action="close" type="button">Volver</button>
     </div>`;
-  toolbar.querySelector("small").textContent = `${currentFileName} · ${formatNumber(uploadedData.length)} registros · código generado por IA`;
+  const providerName = PROVIDERS[lastDashboard?.provider]?.name || "IA";
+  const modelName = lastDashboard?.model ? ` · ${lastDashboard.model}` : "";
+  toolbar.querySelector("small").textContent = `${currentFileName} · ${formatNumber(uploadedData.length)} registros · ${providerName}${modelName}`;
   toolbar.querySelector('[data-action="regenerate"]').addEventListener("click", () => {
     closeDashboardView();
     generateDashboard();
@@ -467,7 +677,9 @@ function showDashboardReady(snapshot, persisted = true) {
     timeStyle: "short",
   }).format(new Date(snapshot.createdAt));
 
-  elements.readyDetails.textContent = `${formatNumber(snapshot.rowCount)} registros · ${date}${persisted ? " · guardado localmente" : ""}`;
+  const providerName = PROVIDERS[snapshot.provider]?.name || "IA";
+  const modelName = snapshot.model ? ` · ${snapshot.model}` : "";
+  elements.readyDetails.textContent = `${formatNumber(snapshot.rowCount)} registros · ${providerName}${modelName} · ${date}${persisted ? " · guardado localmente" : ""}`;
   elements.readyPanel.hidden = false;
 }
 
@@ -699,10 +911,10 @@ function humanizeApiError(error) {
     return "El modelo configurado no está disponible. Actualiza su nombre en Configuración.";
   }
   if (/quota|429|RESOURCE_EXHAUSTED/i.test(message)) {
-    return "Se alcanzó el límite de solicitudes o cuota de Gemini. Inténtalo más tarde.";
+    return "Se alcanzó el límite de solicitudes o cuota del proveedor seleccionado. Inténtalo más tarde o cambia de proveedor.";
   }
   if (/Failed to fetch|NetworkError/i.test(message)) {
-    return "No se pudo conectar con Gemini. Revisa Internet, CORS y las restricciones de tu API Key.";
+    return "No se pudo conectar con el proveedor seleccionado. Revisa Internet, CORS y las restricciones de tu API Key.";
   }
   return message;
 }
