@@ -85,11 +85,16 @@ Ejemplo: Si identificas una columna de 'Productos', utiliza [...new Set(window.u
 
 Diseño del Entorno: Diseña con Tailwind CSS una cuadrícula responsiva que contenga:
 
-Al menos 3 tarjetas de KPIs cuyos valores se calculen dinámicamente operando sobre la totalidad de los registros de window.uploadedData (ej. sumas totales, promedios, conteos únicos).
+Al menos 4 tarjetas de KPIs cuyos valores se calculen dinámicamente operando sobre la totalidad de los registros de window.uploadedData (ej. sumas totales, promedios, conteos únicos).
 
-Al menos 2 gráficos de Plotly.js que se alimenten de las variables procesadas dinámicamente por tus algoritmos.
+Al menos 3 gráficos de Plotly.js que se alimenten de las variables procesadas dinámicamente por tus algoritmos.
 
-Robustez: Si faltan datos en alguna fila o una conversión numérica falla en tiempo de ejecución, el JavaScript generado debe gestionarlo de forma segura (ej. usando parseFloat(x) || 0) para evitar que el dashboard deje de renderizarse en pantalla.`;
+Robustez: Si faltan datos en alguna fila o una conversión numérica falla en tiempo de ejecución, el JavaScript generado debe gestionarlo de forma segura (ej. usando parseFloat(x) || 0) para evitar que el dashboard deje de renderizarse en pantalla.
+
+Tecnologías permitidas: usa exclusivamente Plotly.js para gráficos y Tailwind CSS para estilos.\n
+Tecnologías prohibidas: NO uses WebGL directo, D3.js, Three.js, WebWorkers, ni otras librerías que no estén listadas como disponibles. No cargues scripts desde CDNs distintos a los ya permitidos en el entorno y no realices peticiones de red desde el código generado. Si el modelo propone una técnica no permitida, reescribe la solución usando sólo Plotly y Tailwind.
+agrega tono blur y con filtro de dia y de noche
+`;
 
 // Estas reglas se adjuntan siempre, incluso si el usuario personaliza su System Prompt.
 // Describen el contrato real entre Gemini y el entorno local de ejecución.
@@ -105,6 +110,15 @@ CONTRATO DE DATOS Y ANÁLISIS DINÁMICO:
 - Si una columna no resulta útil para KPIs, agrupaciones o tendencias, ignórala.
 - Plotly.js y Tailwind CSS están disponibles dentro del entorno de ejecución.
 - Puedes usar clases utilitarias de Tailwind y complementar el diseño con una etiqueta <style> cuando sea necesario.`;
+// Refuerzo explícito de tecnologías permitidas en tiempo de ejecución
+// (ayuda a los modelos y a revisores humanos a entender limitaciones).
+const RUNTIME_TECH_CONSTRAINTS = `
+Tecnologías permitidas en tiempo de ejecución: Plotly.js y Tailwind CSS (ya cargadas).\n
+Tecnologías prohibidas: NO uses WebGL directo, D3.js, Three.js, WebWorkers, ni cargues scripts externos desde el código generado.\n
+El código generado no debe realizar conexiones de red ni ejecutar operaciones fuera del iframe sandbox.`;
+
+// Adjuntamos estas restricciones al contrato de datos para que siempre estén disponibles.
+// (Se combinan en el mensaje enviado al modelo más tarde en runtime cuando sea necesario.)
 
 const elements = {
   companyTitle: document.querySelector("#company-title"),
@@ -166,7 +180,7 @@ function bindEvents() {
   elements.uploadButton.addEventListener("click", () => elements.csvInput.click());
   elements.csvInput.addEventListener("change", (event) => {
     const [file] = event.target.files;
-    if (file) parseCsv(file);
+    if (file) parseFile(file);
   });
 
   // Permite soltar un CSV sobre la zona de carga.
@@ -184,14 +198,15 @@ function bindEvents() {
     });
   });
 
-  elements.uploadButton.addEventListener("drop", (event) => {
+    elements.uploadButton.addEventListener("drop", (event) => {
     const [file] = event.dataTransfer.files;
     if (!file) return;
-    if (!file.name.toLowerCase().endsWith(".csv")) {
-      setStatus("Selecciona un archivo con extensión .csv.", "error");
+    const name = file.name.toLowerCase();
+    if (!name.endsWith(".csv") && !name.endsWith(".xlsx") && !name.endsWith(".xls")) {
+      setStatus("Selecciona un archivo con extensión .csv o .xlsx.", "error");
       return;
     }
-    parseCsv(file);
+    parseFile(file);
   });
 
   elements.generateButton.addEventListener("click", generateDashboard);
@@ -400,6 +415,86 @@ function parseCsv(file) {
       setStatus(`No fue posible leer el CSV: ${error.message}`, "error");
     },
   });
+}
+// Carga un script dinámicamente (por ejemplo SheetJS) y devuelve una promesa.
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = src;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error("No se pudo cargar " + src));
+    document.head.appendChild(s);
+  });
+}
+
+// Reemplaza a `parseCsv` y soporta CSV y XLSX.
+async function parseFile(file) {
+  const name = file.name.toLowerCase();
+
+  if (name.endsWith(".csv")) {
+    // Mantener compatibilidad con PapaParse para CSV.
+    return parseCsv(file);
+  }
+
+  if (name.endsWith(".xlsx") || name.endsWith(".xls")) {
+    if (typeof XLSX === "undefined") {
+      try {
+        await loadScript("https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js");
+      } catch (err) {
+        setStatus("No se pudo cargar la biblioteca para XLSX. Revisa tu conexión a Internet.", "error");
+        return;
+      }
+    }
+
+    setStatus("Leyendo y validando el archivo XLSX…", "loading");
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = reader.result;
+        const workbook = XLSX.read(data, { type: "array" });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const json = XLSX.utils.sheet_to_json(worksheet, { defval: null });
+
+        const validRows = json.filter((row) =>
+          Object.values(row).some((value) => value !== null && value !== "" && value !== undefined),
+        );
+
+        if (!validRows.length || !Object.keys(json[0] || {}).length) {
+          parsedRows = [];
+          elements.generateButton.disabled = true;
+          setStatus("El XLSX no contiene registros o encabezados válidos.", "error");
+          return;
+        }
+
+        parsedRows = validRows;
+        currentFileName = file.name;
+        lastDashboard = null;
+        elements.readyPanel.hidden = true;
+        deleteDashboardSnapshot().catch((error) => console.warn("No se pudo limpiar el dashboard anterior:", error));
+        elements.fileName.textContent = file.name;
+        elements.fileDetails.textContent = `${formatNumber(validRows.length)} registros · ${Object.keys(json[0]).length} columnas`;
+        elements.uploadButton.classList.add("has-file");
+        elements.generateButton.disabled = false;
+
+        setStatus(`XLSX listo. Se enviarán ${Math.min(validRows.length, MAX_RECORDS)} registros.`);
+      } catch (error) {
+        parsedRows = [];
+        elements.generateButton.disabled = true;
+        setStatus(`No fue posible leer el XLSX: ${error.message}`, "error");
+      }
+    };
+
+    reader.onerror = () => {
+      setStatus("No fue posible leer el archivo XLSX.", "error");
+    };
+
+    reader.readAsArrayBuffer(file);
+    return;
+  }
+
+  setStatus("Formato de archivo no soportado.", "error");
 }
 
 async function generateDashboard() {
